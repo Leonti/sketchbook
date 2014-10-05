@@ -6,12 +6,14 @@
 dht DHT;
 
 Adafruit_PCD8544 display = Adafruit_PCD8544(13, 11, 12, 0, 10);
-int sensor = 2;
+int SENSOR = 2;
+int PUMP = 3;
 int DHT11_PIN = 5;
 
 void setup() {
   Serial.begin(9600);
-  pinMode(sensor, INPUT);
+  pinMode(SENSOR, INPUT);
+  pinMode(PUMP, OUTPUT);
 
   display.begin();
   display.setContrast(60);
@@ -32,6 +34,11 @@ void loop() {
 
   refreshData();
  
+  if (isDry()) {
+    digitalWrite(PUMP, HIGH);
+  } else {
+    digitalWrite(PUMP, LOW);
+  }
   
   Serial.println(isDry());
   delay(2000);
@@ -62,5 +69,5 @@ void refreshData() {
 }
 
 boolean isDry() {
-  return digitalRead(sensor) == 1 ? false : true;
+  return digitalRead(SENSOR) == 1 ? false : true;
 }
