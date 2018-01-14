@@ -10,10 +10,17 @@ int SENSOR = 4;
 int PUMP = 3;
 int DHT11_PIN = 5;
 
+int PUMPING_TIME_LIMIT = 30;
+
+boolean isPumping = false;
+int pumpingTime = 0;
+
+int wateredCount = 0;
+
 void setup() {
   Serial.begin(9600);
   pinMode(SENSOR, INPUT);
-  digitalWrite(SENSOR, LOW)
+  digitalWrite(SENSOR, LOW);
   pinMode(PUMP, OUTPUT);
 
   display.begin();
@@ -36,15 +43,37 @@ void loop() {
   refreshData();
  
   if (isDry()) {
-    digitalWrite(PUMP, HIGH);
-    Serial.println("Plant is dry, watering");
+    if (pumpingTime > PUMPING_TIME_LIMIT) {
+      stopWatering();
+      return;  
+    }    
+    
+    if (isPumping) {
+      pumpingTime = pumpingTime + 2;
+      Serial.println("Still pumping, incrementing the counter");
+    } else {
+      Serial.println("Plant is dry, start watering");
+      wateredCount++;
+      startWatering();
+    }
+    
   } else {
-    digitalWrite(PUMP, LOW);
+    stopWatering();
     Serial.println("Plant is OK");
   }
   
-  
   delay(2000);
+}
+
+void startWatering() {
+    digitalWrite(PUMP, HIGH);
+    isPumping = true;
+    pumpingTime = 0;
+}
+
+void stopWatering() {
+    digitalWrite(PUMP, LOW);
+    isPumping = false;
 }
 
 void refreshData() {
@@ -58,13 +87,17 @@ void refreshData() {
   
   display.clearDisplay();
   
-  display.setCursor(0,10);
+  display.setCursor(0, 5);
   display.print("Temp: ");
   display.print(temperature);
   
-  display.setCursor(0,30);
+  display.setCursor(0, 20);
   display.print("Humidity: ");
   display.print(humidity);   
+   
+  display.setCursor(0, 35);
+  display.print("Count: ");
+  display.print(wateredCount);   
                    
   display.display();
 }
