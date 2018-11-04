@@ -1,6 +1,13 @@
 //#include <Wire.h>
 #include <Adafruit_TiCoServo.h>
 #include <Adafruit_INA219.h>
+#include <Adafruit_SSD1306.h>
+
+#define OLED_RESET 4
+Adafruit_SSD1306 display(OLED_RESET);
+#if (SSD1306_LCDHEIGHT != 64)
+#error("Height incorrect, please fix Adafruit_SSD1306.h!");
+#endif
 
 #include <DallasTemperature.h>
 
@@ -17,7 +24,7 @@ bool isTurningOff = false;
 long previousMillis = 0;
 long tempRequestedMillis = 0;
 bool tempRequested = false;
-long toTurnOffMillis = 0;
+unsigned long toTurnOffMillis = 0;
 bool powerButtonPressed = false;
 
 const int POWER_BUTTON = 7;
@@ -33,12 +40,13 @@ void setup(void)
       delay(1);
   }
 
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  display.clearDisplay();
+
   sensors.begin();
   sensors.setWaitForConversion(false);
 
   uint32_t currentFrequency;
-    
-  Serial.println("Hello!");
 
   pinMode(POWER_BUTTON, INPUT);
   pinMode(POWER_OFF_PIN, OUTPUT);
@@ -47,7 +55,12 @@ void setup(void)
   
   ina219.begin();
 
-  Serial.println("Measuring voltage and current with INA219 ...");
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(WHITE, BLACK);
+  display.setCursor(0,0);
+  display.println(F("Rover v0.1"));
+  display.display();
 }
 
 void loop(void) 
@@ -73,9 +86,17 @@ void loop(void)
 
 
     // 1.2 x (ncellx - 1) = 6V = cut off voltage
-    Serial.print("B:");
-    Serial.print(loadvoltage); Serial.print(",");
+    Serial.print(F("B:"));
+    Serial.print(loadvoltage); Serial.print(F(","));
     Serial.println(current_mA);
+
+    display.setCursor(0,10);
+    display.print(loadvoltage);
+    display.print(F("V"));
+    display.setCursor(0,20);
+    display.print(current_mA);
+    display.print(F("mA"));
+    display.display();
 
     if (!tempRequested) {
       sensors.requestTemperatures();
@@ -84,33 +105,54 @@ void loop(void)
     }
      
   } else if (tempRequested && currentMillis - tempRequestedMillis > 2000) {
-    Serial.print("T:"); 
-    Serial.print(sensors.getTempCByIndex(0)); Serial.print(",");
-    Serial.println(sensors.getTempCByIndex(1));
+    Serial.print(F("T:")); 
+    float roomTemp = sensors.getTempCByIndex(0);
+    float batteryTemp = sensors.getTempCByIndex(1);
+    Serial.print(roomTemp); Serial.print(",");
+    Serial.println(batteryTemp);
+
+    display.setCursor(0,30);
+    display.print(F("R: "));
+    display.print(roomTemp);
+    display.print(F("C "));
+    display.print(F("B: "));
+    display.print(batteryTemp);
+    display.print(F("C"));
+    display.display();
+    
     tempRequested = false;
   }  
   
   if (digitalRead(POWER_BUTTON) == HIGH) {
 
     if (powerButtonPressed == false) {
-      Serial.println("BTN:1");
+      Serial.println(F("BTN:1"));
       powerButtonPressed = true;
     }
   } else {
     powerButtonPressed = false;
   }
   
-  if (isTurningOff && millis() > toTurnOffMillis) {
-    Serial.println("Turning off");
+  if (isTurningOff && millis() > toTurnOffMillis) {    
     turnOff();
   }
 }
 
 void turnOff() {
+  display.setCursor(0,40);
+  display.println(F("Shutting down..."));
+  display.display();
+    
   digitalWrite(POWER_OFF_PIN, HIGH);
   isTurningOff = false;
   delay(500);
   digitalWrite(POWER_OFF_PIN, LOW);
+}
+
+void printShutdownConfirmation() {
+  display.setCursor(0,40);
+  display.println(F("Shutting requested!"));
+  display.display();
 }
 
 void processMessage() {
@@ -119,14 +161,17 @@ void processMessage() {
     char c = Serial.peek();
     // ignore newlines
     if (c == 'S') {
-      Serial.println("OK");
+      Serial.println(F("OK"));
       Serial.read();
       int pos = Serial.parseInt();
       myservo.write(pos);
     } else if (c == 'O') {
-      Serial.println("OK");
-      int offDelaySeconds = Serial.parseInt();
-      toTurnOffMillis = millis() + offDelaySeconds * 1000;
+      Serial.println(F("OK"));
+      printShutdownConfirmation();
+      Serial.read();
+      long offDelaySeconds = Serial.parseInt();
+      Serial.println(offDelaySeconds);
+      toTurnOffMillis = millis() + (offDelaySeconds * 1000);
       isTurningOff = true;
     } else {
       Serial.read(); 
